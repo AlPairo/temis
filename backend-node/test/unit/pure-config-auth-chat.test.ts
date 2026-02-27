@@ -185,7 +185,7 @@ describe("config/env and config/index", () => {
     QDRANT_COLLECTION: "col"
   });
 
-  it("parses dotenv lines and loads env entries without overriding existing values", async () => {
+  it("parses dotenv lines, keeps existing env values, and applies last duplicate value from file", async () => {
     const originalEnv = process.env;
     process.env = validEnv();
     try {
@@ -201,12 +201,14 @@ describe("config/env and config/index", () => {
         cwd: "C:\\repo\\backend-node",
         processEnv: envTarget,
         existsSync: (p) => String(p).endsWith(".env.local"),
-        readFileSync: (() => "KEEP=ignored\nNEW_VALUE=42\n#x\nQUOTED=\"hello\"") as any
+        readFileSync: (() =>
+          "KEEP=ignored\nNEW_VALUE=41\n#x\nNEW_VALUE=42\nQDRANT_URL=\nQDRANT_URL=https://qdrant.example\nQUOTED=\"hello\"") as any
       });
 
       expect(envTarget).toEqual({
         KEEP: "existing",
         NEW_VALUE: "42",
+        QDRANT_URL: "https://qdrant.example",
         QUOTED: "hello"
       });
     } finally {

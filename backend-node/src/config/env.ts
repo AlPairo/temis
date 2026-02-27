@@ -45,6 +45,9 @@ export function loadModeEnvFile(options: LoadModeEnvFileOptions = {}): void {
   const processEnv = options.processEnv ?? process.env;
   const existsSync = options.existsSync ?? fs.existsSync;
   const readFileSync = options.readFileSync ?? fs.readFileSync;
+  const protectedKeys = new Set(
+    Object.keys(processEnv).filter((key) => processEnv[key] !== undefined)
+  );
   const backendRoot = resolveBackendRoot(cwd);
   const rawMode = processEnv.APP_MODE?.trim().toLowerCase();
   const explicitMode = rawMode === "local" || rawMode === "prod" ? rawMode : undefined;
@@ -67,9 +70,10 @@ export function loadModeEnvFile(options: LoadModeEnvFileOptions = {}): void {
       continue;
     }
     const [key, value] = entry;
-    if (processEnv[key] === undefined) {
-      processEnv[key] = value;
+    if (protectedKeys.has(key)) {
+      continue;
     }
+    processEnv[key] = value;
   }
 }
 
