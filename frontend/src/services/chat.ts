@@ -1,4 +1,4 @@
-import type { ChatMessage } from "../types/chat";
+﻿import type { ChatMessage, ReasoningTraceItem } from "../types/chat";
 import { useMock } from "./mocks";
 import { apiConfig } from "./http";
 import { FRONTEND_TEXT } from "../text";
@@ -8,6 +8,7 @@ const SERVICE_ERROR_MESSAGE = FRONTEND_TEXT.shared.serviceErrorMessage;
 export type StreamHandlers = {
   onStart?: () => void;
   onMeta?: (payload: { sessionTitle?: string }) => void;
+  onReasoning?: (payload: ReasoningTraceItem) => void;
   onToken?: (token: string) => void;
   onEnd?: (payload: {
     content: string;
@@ -38,6 +39,37 @@ const toUserFacingError = (raw: string): string => {
     return SERVICE_ERROR_MESSAGE;
   }
   return normalized;
+};
+
+const parseReasoningPayload = (raw: string): ReasoningTraceItem | null => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed !== "object" || parsed === null) {
+    return null;
+  }
+
+  const candidate = parsed as {
+    step?: unknown;
+    detail?: unknown;
+    stage?: unknown;
+    ts?: unknown;
+  };
+
+  if (typeof candidate.step !== "string" || typeof candidate.stage !== "string" || typeof candidate.ts !== "string") {
+    return null;
+  }
+
+  return {
+    step: candidate.step,
+    detail: typeof candidate.detail === "string" ? candidate.detail : undefined,
+    stage: candidate.stage,
+    ts: candidate.ts
+  };
 };
 
 export async function streamChat(
@@ -127,6 +159,11 @@ const handleSseFrame = (frame: string, handlers: StreamHandlers) => {
       handlers.onMeta?.(parsed);
     } catch {
       handlers.onMeta?.({});
+    }
+  } else if (event === "reasoning") {
+    const parsed = parseReasoningPayload(data);
+    if (parsed) {
+      handlers.onReasoning?.(parsed);
     }
   } else if (event === "end") {
     try {

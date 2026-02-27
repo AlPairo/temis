@@ -79,6 +79,67 @@ describe("components/ChatView", () => {
     expect(screen.getByRole("button", { name: /Descargar documento/i })).toBeInTheDocument();
   });
 
+  it("renders reasoning trace collapsed for completed assistant messages", async () => {
+    const user = userEvent.setup();
+    render(
+      <ChatView
+        sessionId="sess-1"
+        messages={[
+          {
+            role: "assistant",
+            content: "Respuesta analitica",
+            reasoningTrace: [
+              {
+                step: "Recuperacion completada",
+                detail: "chunks=2",
+                stage: "retrieval_completed",
+                ts: "2026-02-27T00:00:00.000Z"
+              }
+            ]
+          }
+        ]}
+        streaming={false}
+        analysisEnabled={false}
+        onToggleAnalysis={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Razonamiento")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Mostrar/i })).toBeInTheDocument();
+    expect(screen.queryByText("Recuperacion completada")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Mostrar/i }));
+    expect(screen.getByText("Recuperacion completada")).toBeInTheDocument();
+    expect(screen.getByText("chunks=2")).toBeInTheDocument();
+  });
+
+  it("renders streaming reasoning trace expanded by default", () => {
+    render(
+      <ChatView
+        sessionId="sess-1"
+        messages={[]}
+        streaming
+        assistantReasoningDraft={[
+          {
+            step: "Generacion iniciada",
+            stage: "model_generation_started",
+            ts: "2026-02-27T00:00:00.000Z"
+          }
+        ]}
+        analysisEnabled
+        onToggleAnalysis={vi.fn()}
+        onSend={vi.fn()}
+        onAbort={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Razonamiento")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ocultar/i })).toBeInTheDocument();
+    expect(screen.getByText("Generacion iniciada")).toBeInTheDocument();
+  });
+
   it("opens a referenced document via the resolver service", async () => {
     const user = userEvent.setup();
     render(
@@ -280,7 +341,7 @@ describe("components/ChatView", () => {
       />
     );
 
-    const toggle = screen.getByRole("checkbox", { name: /Analizar|Analysis/i });
+    const toggle = screen.getByRole("checkbox", { name: /An[aá]lisis|Analizar|Analysis/i });
     expect(toggle).not.toBeChecked();
     await user.click(toggle);
     expect(onToggleAnalysis).toHaveBeenCalledWith(true);
@@ -296,6 +357,6 @@ describe("components/ChatView", () => {
         onAbort={vi.fn()}
       />
     );
-    expect(screen.getByRole("checkbox", { name: /Analizar|Analysis/i })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: /An[aá]lisis|Analizar|Analysis/i })).toBeDisabled();
   });
 });

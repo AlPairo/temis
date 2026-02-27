@@ -17,7 +17,7 @@ import {
   type SessionSummary
 } from "../services/sessions";
 import { streamChat } from "../services/chat";
-import type { ChatMessage } from "../types/chat";
+import type { ChatMessage, ReasoningTraceItem } from "../types/chat";
 import { usePermission } from "../hooks/usePermission";
 import { FRONTEND_TEXT } from "../text";
 
@@ -39,10 +39,12 @@ export default function AppHome() {
   const [analysisEnabledBySessionId, setAnalysisEnabledBySessionId] = useState<Record<string, boolean>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [assistantDraft, setAssistantDraft] = useState("");
+  const [assistantReasoningDraft, setAssistantReasoningDraft] = useState<ReasoningTraceItem[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [userPanelOpen, setUserPanelOpen] = useState(false);
   const [snackbar, setSnackbar] = useState<SnackbarState>(null);
   const controllerRef = useRef<AbortController | null>(null);
+  const assistantReasoningDraftRef = useRef<ReasoningTraceItem[]>([]);
   const progressTimeoutsRef = useRef<number[]>([]);
   const canSeeUserManagement = usePermission("users", "read");
 
@@ -144,7 +146,24 @@ export default function AppHome() {
   const pushAssistantErrorMessage = (message?: string) => {
     const content = message?.trim() || SERVICE_ERROR_MESSAGE;
     setAssistantDraft("");
+    assistantReasoningDraftRef.current = [];
+    setAssistantReasoningDraft([]);
     setMessages((prev) => [...prev, { role: "assistant", content }]);
+  };
+
+  const resetAssistantReasoningDraft = () => {
+    assistantReasoningDraftRef.current = [];
+    setAssistantReasoningDraft([]);
+  };
+
+  const appendReasoningItem = (item: ReasoningTraceItem) => {
+    const dedupeKey = `${item.stage}|${item.ts}|${item.step}`;
+    if (assistantReasoningDraftRef.current.some((entry) => `${entry.stage}|${entry.ts}|${entry.step}` === dedupeKey)) {
+      return;
+    }
+    const next = [...assistantReasoningDraftRef.current, item];
+    assistantReasoningDraftRef.current = next;
+    setAssistantReasoningDraft(next);
   };
 
   const showSnackbar = (message: string, tone: "success" | "error" = "success") => {
@@ -157,6 +176,7 @@ export default function AppHome() {
     setMobilePanel("chat");
     setMessages([]);
     setAssistantDraft("");
+    resetAssistantReasoningDraft();
   };
 
   const handleSelect = (id: string) => {
@@ -208,6 +228,7 @@ export default function AppHome() {
 
     setMessages((prev) => [...prev, { role: "user" as const, content: text }]);
     setAssistantDraft("");
+    resetAssistantReasoningDraft();
     setStreaming(true);
     stopProgressUpdates();
     controllerRef.current?.abort();
@@ -215,6 +236,7 @@ export default function AppHome() {
 
     try {
       let receivedToken = false;
+      let receivedReasoning = false;
       await streamChat(
         { sessionId, message: text, analysisEnabled },
         {
@@ -224,6 +246,15 @@ export default function AppHome() {
             queryClient.setQueryData<SessionSummary[] | undefined>(["sessions", sessionFilters], (prev) =>
               (prev ?? []).map((s) => (s.session_id === sessionId ? { ...s, title: sessionTitle } : s))
             );
+          },
+          onReasoning: (payload) => {
+            appendReasoningItem(payload);
+            if (!analysisEnabled || receivedToken || receivedReasoning) {
+              return;
+            }
+            receivedReasoning = true;
+            stopProgressUpdates();
+            setAssistantDraft((prev) => prev || FRONTEND_TEXT.chatView.reasoningThinking);
           },
           onToken: (token) => {
             if (!receivedToken) {
@@ -236,8 +267,11 @@ export default function AppHome() {
           },
           onEnd: ({ content, citations, lowConfidence }) => {
             stopProgressUpdates();
-            setMessages((prev) => [...prev, { role: "assistant", content, citations, lowConfidence }]);
+            const reasoningTrace =
+              assistantReasoningDraftRef.current.length > 0 ? [...assistantReasoningDraftRef.current] : undefined;
+            setMessages((prev) => [...prev, { role: "assistant", content, citations, lowConfidence, reasoningTrace }]);
             setAssistantDraft("");
+            resetAssistantReasoningDraft();
             setStreaming(false);
             queryClient.invalidateQueries({ queryKey: ["sessions"] });
             queryClient.setQueryData<SessionSummary[] | undefined>(["sessions", sessionFilters], (prev) =>
@@ -267,6 +301,7 @@ export default function AppHome() {
     controllerRef.current?.abort();
     stopProgressUpdates();
     setAssistantDraft("");
+    resetAssistantReasoningDraft();
     setStreaming(false);
   };
 
@@ -302,6 +337,7 @@ export default function AppHome() {
         setActiveSessionId(`local-${Date.now()}`);
         setMessages([]);
         setAssistantDraft("");
+        resetAssistantReasoningDraft();
       }
       showSnackbar(APP_HOME_TEXT.sessionMessages.deleteSuccess);
       return;
@@ -313,6 +349,7 @@ export default function AppHome() {
         setActiveSessionId(`local-${Date.now()}`);
         setMessages([]);
         setAssistantDraft("");
+        resetAssistantReasoningDraft();
       }
       refreshSessions();
       showSnackbar(APP_HOME_TEXT.sessionMessages.deleteSuccess);
@@ -375,6 +412,7 @@ export default function AppHome() {
                   messages={messages}
                   streaming={streaming}
                   assistantDraft={assistantDraft}
+                  assistantReasoningDraft={assistantReasoningDraft}
                   analysisEnabled={activeAnalysisEnabled}
                   onToggleAnalysis={handleToggleAnalysis}
                   onSend={handleSend}
@@ -416,6 +454,7 @@ export default function AppHome() {
               messages={messages}
               streaming={streaming}
               assistantDraft={assistantDraft}
+              assistantReasoningDraft={assistantReasoningDraft}
               analysisEnabled={activeAnalysisEnabled}
               onToggleAnalysis={handleToggleAnalysis}
               onSend={handleSend}

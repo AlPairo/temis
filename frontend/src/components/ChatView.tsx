@@ -4,7 +4,7 @@ import Textarea from "./ui/Textarea";
 import Button from "./ui/Button";
 import MarkdownContent from "./MarkdownContent";
 import { cn } from "../utils/cn";
-import type { ChatCitation, ChatMessage } from "../types/chat";
+import type { ChatCitation, ChatMessage, ReasoningTraceItem } from "../types/chat";
 import { FRONTEND_TEXT } from "../text";
 import { downloadDocumentFile, resolveDocumentLink } from "../services/documents";
 
@@ -14,6 +14,7 @@ type Props = {
   messages: ChatMessage[];
   streaming: boolean;
   assistantDraft?: string;
+  assistantReasoningDraft?: ReasoningTraceItem[];
   analysisEnabled: boolean;
   onToggleAnalysis: (next: boolean) => void;
   onSend: (text: string) => void;
@@ -31,6 +32,7 @@ export default function ChatView({
   messages,
   streaming,
   assistantDraft,
+  assistantReasoningDraft,
   analysisEnabled,
   onToggleAnalysis,
   onSend,
@@ -43,7 +45,7 @@ export default function ChatView({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, assistantDraft]);
+  }, [messages, assistantDraft, assistantReasoningDraft]);
 
   useEffect(() => {
     setShowSessionId(false);
@@ -74,7 +76,8 @@ export default function ChatView({
   const sessionLabelTitle = sessionTitle?.trim() || uiText.newSessionTitle;
   const sessionIdTitle = sessionId ? `${uiText.sessionIdTitlePrefix}${sessionId}` : uiText.sessionIdMissingTitle;
   const sessionIdAria = sessionId ? `${uiText.sessionIdShowAriaPrefix}${sessionId}` : uiText.sessionIdMissingAria;
-  const isEmptyConversation = messages.length === 0 && !assistantDraft;
+  const hasAssistantDraft = Boolean(assistantDraft) || (assistantReasoningDraft?.length ?? 0) > 0;
+  const isEmptyConversation = messages.length === 0 && !hasAssistantDraft;
 
   return (
     <section className="mx-auto flex h-full w-full max-w-4xl min-h-0 flex-col gap-3 md:gap-4">
@@ -128,9 +131,18 @@ export default function ChatView({
             ) : (
               <>
                 {messages.map((msg, idx) => (
-                  <MessageBubble key={idx} message={msg} />
+                  <MessageBubble key={idx} message={msg} defaultReasoningOpen={false} />
                 ))}
-                {assistantDraft ? <MessageBubble message={{ role: "assistant", content: assistantDraft + " |" }} /> : null}
+                {hasAssistantDraft ? (
+                  <MessageBubble
+                    message={{
+                      role: "assistant",
+                      content: assistantDraft ? assistantDraft + " |" : uiText.reasoningThinking,
+                      reasoningTrace: assistantReasoningDraft
+                    }}
+                    defaultReasoningOpen
+                  />
+                ) : null}
                 <div ref={bottomRef} />
               </>
             )}
@@ -204,9 +216,10 @@ function EmptyConversationPrompt({
   );
 }
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, defaultReasoningOpen }: { message: ChatMessage; defaultReasoningOpen: boolean }) {
   const isUser = message.role === "user";
   const hasReferences = !isUser && ((message.citations?.length ?? 0) > 0 || message.lowConfidence);
+  const hasReasoningTrace = !isUser && (message.reasoningTrace?.length ?? 0) > 0;
   return (
     <div
       className={cn(
@@ -221,9 +234,45 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       ) : (
         <div className="space-y-3">
           <MarkdownContent content={message.content} className="space-y-2 text-sm leading-6" />
+          {hasReasoningTrace ? (
+            <ReasoningTracePanel trace={message.reasoningTrace ?? []} defaultOpen={defaultReasoningOpen} />
+          ) : null}
           {hasReferences ? <MessageReferences citations={message.citations} lowConfidence={message.lowConfidence} /> : null}
         </div>
       )}
+    </div>
+  );
+}
+
+function ReasoningTracePanel({ trace, defaultOpen }: { trace: ReasoningTraceItem[]; defaultOpen: boolean }) {
+  const text = FRONTEND_TEXT.chatView;
+  const [expanded, setExpanded] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-xl border border-[var(--color-border-subtle)] bg-white/80 px-3 py-2 text-xs text-[var(--color-ink-soft)]">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-medium text-[var(--color-ink)]">{text.reasoningTitle}</span>
+        <button
+          type="button"
+          className="rounded-md border border-[var(--color-border-subtle)] bg-white px-2 py-0.5 text-[11px] text-[var(--color-ink)] hover:bg-[#f6f8fb]"
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? text.reasoningHide : text.reasoningShow}
+        </button>
+      </div>
+      {expanded ? (
+        <ul className="mt-2 space-y-2">
+          {trace.map((entry, index) => (
+            <li key={`${entry.stage}-${entry.ts}-${entry.step}-${index}`} className="rounded-md bg-[#f6f8fb] px-2 py-1.5">
+              <p className="font-medium text-[var(--color-ink)]">
+                {text.reasoningStageLabels[entry.stage as keyof typeof text.reasoningStageLabels] ?? entry.stage}
+              </p>
+              <p>{entry.step}</p>
+              {entry.detail ? <p>{entry.detail}</p> : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

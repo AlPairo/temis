@@ -50,7 +50,23 @@ export interface StreamErrorEvent {
   safeMessage: string;
 }
 
-export type ChatStreamEvent = StreamTokenEvent | StreamCompleteEvent | StreamErrorEvent;
+export type ReasoningStage =
+  | "request_received"
+  | "retrieval_started"
+  | "retrieval_completed"
+  | "prompt_built"
+  | "model_generation_started"
+  | "final_synthesis_completed";
+
+export interface StreamReasoningEvent {
+  type: "reasoning";
+  stage: ReasoningStage;
+  step: string;
+  detail?: string;
+  ts: string;
+}
+
+export type ChatStreamEvent = StreamTokenEvent | StreamCompleteEvent | StreamErrorEvent | StreamReasoningEvent;
 
 export interface OpenAIStreamRequest {
   model: string;

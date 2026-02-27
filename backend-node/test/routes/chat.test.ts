@@ -121,6 +121,13 @@ describe("registerChatRoutes", () => {
       });
 
       yield { type: "token", token: "Hola" };
+      yield {
+        type: "reasoning",
+        step: "Recuperacion completada",
+        detail: "chunks=4 citations=2",
+        stage: "retrieval_completed",
+        ts: "2026-02-27T00:00:00.000Z"
+      };
       yield { type: "token", token: " mundo" };
       yield { type: "complete", content: "Hola mundo", messageId: "msg-9" };
     });
@@ -174,12 +181,18 @@ describe("registerChatRoutes", () => {
       expect(streamReply).toHaveBeenCalledTimes(1);
 
       const events = parseSse(response.payload);
-      expect(events.map((event) => event.event)).toEqual(["start", "meta", "token", "token", "end"]);
+      expect(events.map((event) => event.event)).toEqual(["start", "meta", "token", "reasoning", "token", "end"]);
       expect(events[0]).toEqual({ event: "start", data: "[START]" });
       expect(JSON.parse(events[1].data)).toEqual({ sessionTitle: "Derivada de x^2" });
       expect(events[2]).toEqual({ event: "token", data: "Hola" });
-      expect(events[3]).toEqual({ event: "token", data: "mundo" });
-      expect(JSON.parse(events[4].data)).toEqual({
+      expect(JSON.parse(events[3].data)).toEqual({
+        step: "Recuperacion completada",
+        detail: "chunks=4 citations=2",
+        stage: "retrieval_completed",
+        ts: "2026-02-27T00:00:00.000Z"
+      });
+      expect(events[4]).toEqual({ event: "token", data: "mundo" });
+      expect(JSON.parse(events[5].data)).toEqual({
         status: "[END]",
         content: "Hola mundo",
         messageId: "msg-9"

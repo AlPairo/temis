@@ -118,7 +118,20 @@ describe("modules/chat/chat-orchestrator", () => {
       })
     );
 
-    expect(events).toEqual([
+    const reasoningEvents = events.filter((event) => event.type === "reasoning");
+    expect(events[0]).toMatchObject({ type: "reasoning", stage: "request_received" });
+    expect(reasoningEvents.map((event) => event.stage)).toEqual([
+      "request_received",
+      "retrieval_started",
+      "retrieval_completed",
+      "prompt_built",
+      "model_generation_started",
+      "final_synthesis_completed"
+    ]);
+    expect(reasoningEvents.every((event) => typeof event.ts === "string" && event.ts.length > 0)).toBe(true);
+
+    const nonReasoningEvents = events.filter((event) => event.type !== "reasoning");
+    expect(nonReasoningEvents).toEqual([
       { type: "token", token: "Hola" },
       { type: "token", token: " mundo" },
       {
@@ -224,7 +237,9 @@ describe("modules/chat/chat-orchestrator", () => {
       })
     );
 
-    expect(events).toEqual([
+    const reasoningEvents = events.filter((event) => event.type === "reasoning");
+    expect(reasoningEvents.map((event) => event.stage)).toEqual(["request_received", "retrieval_started"]);
+    expect(events.filter((event) => event.type !== "reasoning")).toEqual([
       {
         type: "error",
         safeMessage: "Actualmente el servicio se encuentra con errores, contactar con soporte t\u00e9cnico."
@@ -336,6 +351,7 @@ describe("modules/chat/chat-orchestrator", () => {
       })
     );
 
+    expect(events.some((event) => event.type === "reasoning")).toBe(false);
     expect(events).toEqual([
       {
         type: "complete",

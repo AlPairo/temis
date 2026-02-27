@@ -7,7 +7,8 @@ import type {
   OpenAIStreamChunk,
   OpenAIStreamRequest,
   OrchestratorDependencies,
-  QueryType
+  QueryType,
+  ReasoningStage
 } from "./types.js";
 import type { RetrievalResult } from "../rag/types.js";
 
@@ -120,6 +121,15 @@ const buildDocsOnlyAssistantMessage = (retrieval: RetrievalResult): string => {
   });
 
   return lines.join("\n").trim();
+};
+
+const buildReasoningDetail = (
+  fields: Record<string, string | number | boolean | null | undefined>
+): string | undefined => {
+  const parts = Object.entries(fields)
+    .filter(([, value]) => value !== null && value !== undefined)
+    .map(([key, value]) => `${key}=${String(value)}`);
+  return parts.length > 0 ? parts.join(" ") : undefined;
 };
 
 const streamOpenAIFromFetch = async function* (
@@ -250,6 +260,19 @@ export class ChatOrchestrator {
     const userText = input.userText.trim();
     const queryType: QueryType = input.analysisEnabled === true ? "analysis" : "normal";
     let stage = "audit.chat.start";
+    const isAnalysisMode = queryType === "analysis";
+
+    const createReasoningEvent = (
+      reasoningStage: ReasoningStage,
+      step: string,
+      detail?: string
+    ): Extract<ChatStreamEvent, { type: "reasoning" }> => ({
+      type: "reasoning",
+      stage: reasoningStage,
+      step,
+      detail,
+      ts: new Date().toISOString()
+    });
 
     const traceStage = (nextStage: string, fields: Record<string, unknown> = {}): void => {
       stage = nextStage;
@@ -287,10 +310,22 @@ export class ChatOrchestrator {
         role: "user",
         content: userText
       });
+      if (isAnalysisMode) {
+        yield createReasoningEvent("request_received", "Solicitud comprendida");
+      }
 
       traceStage("rag.retrieve.start", {
         retrieval_top_k: input.retrievalTopK ?? null
       });
+      if (isAnalysisMode) {
+        yield createReasoningEvent(
+          "retrieval_started",
+          "Iniciando recuperacion de contexto",
+          buildReasoningDetail({
+            topK: input.retrievalTopK ?? null
+          })
+        );
+      }
       const retrieval = await dependencies.retrieve({
         query: userText,
         filters: input.retrievalFilters,
@@ -310,6 +345,17 @@ export class ChatOrchestrator {
           citation_count: retrieval.citations.length
         }
       );
+      if (isAnalysisMode) {
+        yield createReasoningEvent(
+          "retrieval_completed",
+          "Recuperacion completada",
+          buildReasoningDetail({
+            chunks: retrieval.chunks.length,
+            citations: retrieval.citations.length,
+            lowConfidence: retrieval.lowConfidence
+          })
+        );
+      }
 
       traceStage("chat.append_retrieval_event");
       await dependencies.chatRepository.appendRetrievalEvent({
@@ -372,6 +418,17 @@ export class ChatOrchestrator {
         userText,
         queryType
       });
+      if (isAnalysisMode) {
+        yield createReasoningEvent(
+          "prompt_built",
+          "Contexto y prompt listos",
+          buildReasoningDetail({
+            history: history.length,
+            promptMessages: prompt.messages.length,
+            citations: retrieval.citations.length
+          })
+        );
+      }
 
       const model = input.model ?? DEFAULT_MODEL;
       traceStage("audit.chat.model_call", {
@@ -397,6 +454,15 @@ export class ChatOrchestrator {
         model,
         prompt_message_count: prompt.messages.length
       });
+      if (isAnalysisMode) {
+        yield createReasoningEvent(
+          "model_generation_started",
+          "Generacion de respuesta iniciada",
+          buildReasoningDetail({
+            model
+          })
+        );
+      }
       for await (const chunk of dependencies.streamOpenAI({
         model,
         messages: prompt.messages
@@ -426,6 +492,16 @@ export class ChatOrchestrator {
         openai_latency_ms: openAIDurationMs,
         assistant_chars: assistantText.length
       });
+      if (isAnalysisMode) {
+        yield createReasoningEvent(
+          "final_synthesis_completed",
+          "Sintesis final completada",
+          buildReasoningDetail({
+            assistantChars: assistantText.length,
+            openAiLatencyMs: openAIDurationMs
+          })
+        );
+      }
       logInfo(
         "chat.openai.complete",
         {

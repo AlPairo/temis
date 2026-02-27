@@ -4,6 +4,7 @@ import { createSseResponse } from "../test/fetch-mocks";
 type HandlerLog = {
   start: number;
   meta: Array<{ sessionTitle?: string }>;
+  reasoning: Array<{ step: string; detail?: string; stage: string; ts: string }>;
   tokens: string[];
   ends: Array<{
     content: string;
@@ -41,6 +42,9 @@ function createHandlers(log: HandlerLog) {
     onMeta: (payload: { sessionTitle?: string }) => {
       log.meta.push(payload);
     },
+    onReasoning: (payload: { step: string; detail?: string; stage: string; ts: string }) => {
+      log.reasoning.push(payload);
+    },
     onToken: (token: string) => {
       log.tokens.push(token);
     },
@@ -69,7 +73,7 @@ describe("services/chat", () => {
     chatServiceMocks.useMock.mockReturnValue(true);
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     const pending = streamChat({ sessionId: "s-1", message: "hola" }, createHandlers(log));
     await vi.runAllTimersAsync();
@@ -85,7 +89,7 @@ describe("services/chat", () => {
   it("emits a service error when the stream request fails with a non-ok response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 503 }));
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     await streamChat({ sessionId: "s-1", message: "hola" }, createHandlers(log));
 
@@ -105,17 +109,27 @@ describe("services/chat", () => {
         "data: Hola\n\n",
         "event: token\n",
         "data: mundo\n\n",
+        "event: reasoning\n",
+        'data: {"step":"Recuperacion completada","detail":"chunks=2","stage":"retrieval_completed","ts":"2026-02-27T00:00:00.000Z"}\n\n',
         "event: end\n",
         'data: {"content":"Hola mundo","messageId":"m-1","citations":[{"id":"d1:c1"}],"lowConfidence":false}\n\n'
       ])
     );
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     await streamChat({ sessionId: "s-1", message: "hola" }, createHandlers(log));
 
     expect(log.meta).toEqual([{ sessionTitle: "Sesion demo" }]);
     expect(log.tokens.map((token) => token.trim())).toEqual(["Hola", "mundo"]);
+    expect(log.reasoning).toEqual([
+      {
+        step: "Recuperacion completada",
+        detail: "chunks=2",
+        stage: "retrieval_completed",
+        ts: "2026-02-27T00:00:00.000Z"
+      }
+    ]);
     expect(log.ends).toEqual([
       { content: "Hola mundo", messageId: "m-1", citations: [{ id: "d1:c1" }], lowConfidence: false }
     ]);
@@ -135,7 +149,7 @@ describe("services/chat", () => {
   it("sends analysis_enabled=true when analysis mode is selected", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(createSseResponse(["event: end\n", 'data: {"content":"ok"}\n\n']));
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     await streamChat({ sessionId: "s-2", message: "hola", analysisEnabled: true }, createHandlers(log));
 
@@ -160,11 +174,12 @@ describe("services/chat", () => {
       ])
     );
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     await streamChat({ sessionId: "s-1", message: "hola" }, createHandlers(log));
 
     expect(log.meta).toEqual([{}]);
+    expect(log.reasoning).toEqual([]);
     expect(log.ends).toEqual([{ content: "plain end text" }]);
     expect(log.errors).toHaveLength(1);
     expect(log.errors[0]).toContain("Actualmente el servicio");
@@ -173,7 +188,7 @@ describe("services/chat", () => {
   it("ignores abort errors without surfacing them to the UI", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue({ name: "AbortError" });
     const { streamChat } = await importChatModule();
-    const log: HandlerLog = { start: 0, meta: [], tokens: [], ends: [], errors: [] };
+    const log: HandlerLog = { start: 0, meta: [], reasoning: [], tokens: [], ends: [], errors: [] };
 
     await expect(streamChat({ sessionId: "s-1", message: "hola" }, createHandlers(log))).resolves.toBeUndefined();
     expect(log.errors).toEqual([]);

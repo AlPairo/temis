@@ -110,6 +110,18 @@ export const FRONTEND_TEXT = {
     textareaPlaceholder: "Escribe tu consulta legal...",
     sending: "Respondiendo...",
     send: "Enviar",
+    reasoningTitle: "Razonamiento",
+    reasoningShow: "Mostrar",
+    reasoningHide: "Ocultar",
+    reasoningThinking: "Pensando...",
+    reasoningStageLabels: {
+      request_received: "Solicitud recibida",
+      retrieval_started: "Recuperando contexto",
+      retrieval_completed: "Contexto recuperado",
+      prompt_built: "Prompt preparado",
+      model_generation_started: "Generando respuesta",
+      final_synthesis_completed: "Sintesis final"
+    },
     referencesTitle: "Referencias",
     referencedDocumentsTitle: "Documentos referenciados",
     openDocumentAction: "Descargar documento",

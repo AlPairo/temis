@@ -200,19 +200,30 @@ const buildStreamChatHandler = (dependencies?: ChatRoutesDependencies) => {
 
         if (event.type === "token") {
           writeSseFrame(reply, "token", event.token);
-          } else if (event.type === "complete") {
-            writeSseFrame(
-              reply,
-              "end",
-              JSON.stringify({
-                status: "[END]",
-                content: event.content,
-                messageId: event.messageId,
-                citations: event.citations,
-                lowConfidence: event.lowConfidence
-              })
-            );
-          } else if (event.type === "error") {
+        } else if (event.type === "complete") {
+          writeSseFrame(
+            reply,
+            "end",
+            JSON.stringify({
+              status: "[END]",
+              content: event.content,
+              messageId: event.messageId,
+              citations: event.citations,
+              lowConfidence: event.lowConfidence
+            })
+          );
+        } else if (event.type === "reasoning") {
+          writeSseFrame(
+            reply,
+            "reasoning",
+            JSON.stringify({
+              step: event.step,
+              detail: event.detail,
+              stage: event.stage,
+              ts: event.ts
+            })
+          );
+        } else if (event.type === "error") {
           writeSseFrame(reply, "error", `[ERROR] ${event.safeMessage}`);
         }
       }

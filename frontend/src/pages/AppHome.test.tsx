@@ -123,6 +123,12 @@ describe("pages/AppHome", () => {
     appHomeMocks.streamChat.mockImplementation(async (_input: any, handlers: any) => {
       handlers.onStart?.();
       handlers.onMeta?.({ sessionTitle: "Titulo sugerido" });
+      handlers.onReasoning?.({
+        step: "Recuperacion completada",
+        detail: "chunks=2",
+        stage: "retrieval_completed",
+        ts: "2026-02-27T00:00:00.000Z"
+      });
       handlers.onToken?.("Hola ");
       handlers.onToken?.("mundo");
       handlers.onEnd?.({
@@ -155,13 +161,22 @@ describe("pages/AppHome", () => {
       const props = lastChatViewProps();
       expect(props.streaming).toBe(false);
       expect(props.assistantDraft).toBe("");
+      expect(props.assistantReasoningDraft).toEqual([]);
       expect(props.messages).toEqual([
         { role: "user", content: "consulta" },
         {
           role: "assistant",
           content: "Hola mundo",
           citations: [{ id: "d1:c1", doc_id: "d1", chunk_id: "c1", score: 0.8 }],
-          lowConfidence: false
+          lowConfidence: false,
+          reasoningTrace: [
+            {
+              step: "Recuperacion completada",
+              detail: "chunks=2",
+              stage: "retrieval_completed",
+              ts: "2026-02-27T00:00:00.000Z"
+            }
+          ]
         }
       ]);
     });
