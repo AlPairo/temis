@@ -1,4 +1,5 @@
 ﻿import { buildPrompt as defaultBuildPrompt } from "./prompt-builder.js";
+import { resolveEffectiveQuery } from "./retry-intent.js";
 import { logDebug, logError, logInfo, logTrace } from "../../observability/logger.js";
 import { recordErrorRate, recordOpenAILatency, recordOpenAIUsage } from "../../observability/metrics.js";
 import type {
@@ -303,6 +304,28 @@ export class ChatOrchestrator {
     });
 
     try {
+      traceStage("chat.load_history_for_retry_resolution");
+      const historyForRetryResolution = await dependencies.chatRepository.getConversationMessages(input.conversationId);
+      const retryResolution = resolveEffectiveQuery({
+        rawUserText: userText,
+        previousMessages: historyForRetryResolution
+      });
+      const retrievalQuery = retryResolution.effectiveQuery || userText;
+
+      logDebug(
+        "chat.orchestrator.retry_resolution",
+        {
+          requestId,
+          conversationId: input.conversationId,
+          sessionId: input.sessionId ?? null
+        },
+        {
+          is_retry_intent: retryResolution.isRetryIntent,
+          retry_resolution: retryResolution.resolution,
+          retry_suffix_applied: retryResolution.suffixApplied
+        }
+      );
+
       traceStage("chat.append_user_message");
       const userMessage = await dependencies.chatRepository.appendMessage({
         conversationId: input.conversationId,
@@ -315,19 +338,24 @@ export class ChatOrchestrator {
       }
 
       traceStage("rag.retrieve.start", {
-        retrieval_top_k: input.retrievalTopK ?? null
+        retrieval_top_k: input.retrievalTopK ?? null,
+        is_retry_intent: retryResolution.isRetryIntent,
+        retry_resolution: retryResolution.resolution,
+        retry_suffix_applied: retryResolution.suffixApplied
       });
       if (isAnalysisMode) {
         yield createReasoningEvent(
           "retrieval_started",
           "Iniciando recuperacion de contexto",
           buildReasoningDetail({
-            topK: input.retrievalTopK ?? null
+            topK: input.retrievalTopK ?? null,
+            retryIntent: retryResolution.isRetryIntent,
+            retryResolution: retryResolution.resolution
           })
         );
       }
       const retrieval = await dependencies.retrieve({
-        query: userText,
+        query: retrievalQuery,
         filters: input.retrievalFilters,
         topK: input.retrievalTopK,
         disableRerank: queryType === "analysis",
@@ -362,7 +390,7 @@ export class ChatOrchestrator {
         conversationId: input.conversationId,
         messageId: userMessage.id,
         userId: input.userId ?? null,
-        query: userText,
+        query: retrievalQuery,
         queryType,
         results: retrieval
       });
@@ -415,7 +443,7 @@ export class ChatOrchestrator {
       const prompt = dependencies.buildPrompt({
         history,
         retrieval,
-        userText,
+        userText: retrievalQuery,
         queryType
       });
       if (isAnalysisMode) {

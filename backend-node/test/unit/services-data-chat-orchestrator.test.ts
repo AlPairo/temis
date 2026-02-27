@@ -247,7 +247,7 @@ describe("modules/chat/chat-orchestrator", () => {
     ]);
     expect(appendMessage).toHaveBeenCalledTimes(1);
     expect(appendRetrievalEvent).not.toHaveBeenCalled();
-    expect(getConversationMessages).not.toHaveBeenCalled();
+    expect(getConversationMessages).toHaveBeenCalledTimes(1);
     expect(mocks.recordErrorRate).toHaveBeenCalledWith("chat_orchestrator_error");
     expect(mocks.logError).toHaveBeenCalledWith(
       "chat.orchestrator.error",
@@ -367,10 +367,118 @@ describe("modules/chat/chat-orchestrator", () => {
         query: "consulta"
       })
     );
-    expect(getConversationMessages).not.toHaveBeenCalled();
+    expect(getConversationMessages).toHaveBeenCalledTimes(1);
     expect(buildPrompt).not.toHaveBeenCalled();
     expect(streamOpenAI).not.toHaveBeenCalled();
     expect(auditAppendEvent.mock.calls.map((call) => call[0].eventType)).toEqual(["chat.start", "chat.complete"]);
+  });
+
+  it("resolves retry commands to the latest useful user query before retrieval", async () => {
+    const appendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "user-msg-1" })
+      .mockResolvedValueOnce({ id: "assistant-msg-1" });
+    const appendRetrievalEvent = vi.fn().mockResolvedValue({ id: 11 });
+    const getConversationMessages = vi
+      .fn()
+      .mockResolvedValueOnce([
+        { role: "user", content: "Necesito ayuda con despidos indebidos" },
+        { role: "assistant", content: "respuesta previa" }
+      ])
+      .mockResolvedValueOnce([{ role: "user", content: "Necesito ayuda con despidos indebidos" }]);
+    const retrieveMock = vi.fn().mockResolvedValue(emptyRetrieval());
+    const buildPrompt = vi.fn().mockReturnValue({ systemPrompt: "sys", messages: [] });
+
+    const orchestrator = new ChatOrchestrator({
+      chatRepository: {
+        appendMessage,
+        appendRetrievalEvent,
+        getConversationMessages
+      },
+      auditRepository: {
+        appendEvent: vi.fn().mockResolvedValue({ id: 1 })
+      },
+      retrieve: retrieveMock,
+      buildPrompt,
+      streamOpenAI: vi.fn(async function* () {
+        yield "ok";
+      })
+    });
+
+    await collect(
+      orchestrator.streamReply({
+        conversationId: "conv-retry",
+        userText: "vuelve a intentar",
+        analysisEnabled: true,
+        requestId: "req-retry"
+      })
+    );
+
+    expect(retrieveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Necesito ayuda con despidos indebidos"
+      })
+    );
+    expect(appendRetrievalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Necesito ayuda con despidos indebidos"
+      })
+    );
+    expect(buildPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userText: "Necesito ayuda con despidos indebidos"
+      })
+    );
+  });
+
+  it("merges retry suffix instructions with the previous user query", async () => {
+    const appendMessage = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "user-msg-1" })
+      .mockResolvedValueOnce({ id: "assistant-msg-1" });
+    const appendRetrievalEvent = vi.fn().mockResolvedValue({ id: 11 });
+    const getConversationMessages = vi
+      .fn()
+      .mockResolvedValueOnce([{ role: "user", content: "Despido indirecto y salarios impagos" }])
+      .mockResolvedValueOnce([{ role: "user", content: "Despido indirecto y salarios impagos" }]);
+    const retrieveMock = vi.fn().mockResolvedValue(emptyRetrieval());
+    const buildPrompt = vi.fn().mockReturnValue({ systemPrompt: "sys", messages: [] });
+
+    const orchestrator = new ChatOrchestrator({
+      chatRepository: {
+        appendMessage,
+        appendRetrievalEvent,
+        getConversationMessages
+      },
+      auditRepository: {
+        appendEvent: vi.fn().mockResolvedValue({ id: 1 })
+      },
+      retrieve: retrieveMock,
+      buildPrompt,
+      streamOpenAI: vi.fn(async function* () {
+        yield "ok";
+      })
+    });
+
+    await collect(
+      orchestrator.streamReply({
+        conversationId: "conv-retry-suffix",
+        userText: "vuelve a intentar pero enfocate en jurisprudencia reciente",
+        analysisEnabled: true,
+        requestId: "req-retry-suffix"
+      })
+    );
+
+    expect(retrieveMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Despido indirecto y salarios impagos\nenfocate en jurisprudencia reciente"
+      })
+    );
+    expect(appendRetrievalEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        query: "Despido indirecto y salarios impagos\nenfocate en jurisprudencia reciente"
+      })
+    );
   });
 });
 
