@@ -140,6 +140,7 @@ describe("modules/chat/chat-orchestrator", () => {
       query: "hola mundo",
       filters: undefined,
       topK: 3,
+      disableRerank: true,
       requestId: "req-1",
       conversationId: "conv-1"
     });
@@ -154,7 +155,8 @@ describe("modules/chat/chat-orchestrator", () => {
     expect(buildPrompt).toHaveBeenCalledWith({
       history: [{ role: "user", content: "prior" }],
       retrieval: expect.objectContaining({ citations: expect.any(Array) }),
-      userText: "hola mundo"
+      userText: "hola mundo",
+      queryType: "analysis"
     });
     expect(streamOpenAI).toHaveBeenCalledWith({
       model: "gpt-test",

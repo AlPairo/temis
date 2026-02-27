@@ -74,9 +74,10 @@ export default function ChatView({
   const sessionLabelTitle = sessionTitle?.trim() || uiText.newSessionTitle;
   const sessionIdTitle = sessionId ? `${uiText.sessionIdTitlePrefix}${sessionId}` : uiText.sessionIdMissingTitle;
   const sessionIdAria = sessionId ? `${uiText.sessionIdShowAriaPrefix}${sessionId}` : uiText.sessionIdMissingAria;
+  const isEmptyConversation = messages.length === 0 && !assistantDraft;
 
   return (
-    <section className="flex h-full min-h-0 flex-col gap-3 md:gap-4">
+    <section className="mx-auto flex h-full w-full max-w-4xl min-h-0 flex-col gap-3 md:gap-4">
       <div className="flex flex-col gap-2 rounded-lg border border-[var(--color-border-subtle)] bg-white px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="flex min-w-0 items-center gap-2 text-sm text-[var(--color-ink-soft)]">
           <ShieldCheck size={16} className="text-[var(--color-accent)]" />
@@ -109,43 +110,97 @@ export default function ChatView({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 space-y-3 overflow-y-auto rounded-lg border border-[var(--color-border-subtle)] bg-white p-3 md:p-4">
-        {messages.map((msg, idx) => (
-          <MessageBubble key={idx} message={msg} />
-        ))}
-        {assistantDraft ? <MessageBubble message={{ role: "assistant", content: assistantDraft + " |" }} /> : null}
-        <div ref={bottomRef} />
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <Textarea
-          placeholder={uiText.textareaPlaceholder}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={handleTextareaKeyDown}
-          disabled={streaming}
-        />
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <label className="inline-flex items-center gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[#f6f8fb] px-2 py-1 text-xs text-[var(--color-ink)]">
-            <span>{uiText.analysisLabel}</span>
-            <input
-              type="checkbox"
-              aria-label={uiText.analysisLabel}
-              checked={analysisEnabled}
-              disabled={streaming}
-              onChange={(event) => onToggleAnalysis(event.target.checked)}
-              className="h-3.5 w-3.5 accent-[var(--color-accent)]"
-            />
-          </label>
-          <div className="flex justify-end">
-            <Button type="submit" disabled={!sessionId && !text} size="md" className="w-full sm:w-auto">
-              {streaming ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
-              {streaming ? uiText.sending : uiText.send}
-            </Button>
+      <div className="flex-1 min-h-0 overflow-hidden rounded-2xl border border-[var(--color-border-subtle)] bg-white shadow-sm">
+        <div className="flex h-full min-h-0 flex-col">
+          <div
+            className={cn(
+              "flex-1 min-h-0 overflow-y-auto px-3 pb-2 pt-3 md:px-4 md:pb-3 md:pt-4",
+              isEmptyConversation ? "flex items-center justify-center" : "space-y-3"
+            )}
+          >
+            {isEmptyConversation ? (
+              <EmptyConversationPrompt
+                intro={uiText.emptyStateIntro}
+                examplesTitle={uiText.emptyStateExamplesTitle}
+                examples={uiText.emptyStateExamples}
+                onChooseExample={(example) => setText(example)}
+              />
+            ) : (
+              <>
+                {messages.map((msg, idx) => (
+                  <MessageBubble key={idx} message={msg} />
+                ))}
+                {assistantDraft ? <MessageBubble message={{ role: "assistant", content: assistantDraft + " |" }} /> : null}
+                <div ref={bottomRef} />
+              </>
+            )}
           </div>
+
+          <form onSubmit={handleSubmit} className="border-t border-[var(--color-border-subtle)] bg-[#fbfcff] p-2 md:p-3">
+            <div className="flex items-center gap-2 rounded-xl border border-[var(--color-border-subtle)] bg-white px-2.5 py-2 shadow-sm md:px-3">
+              <label className="inline-flex h-9 shrink-0 items-center gap-2 rounded-md border border-[var(--color-border-subtle)] bg-[#f6f8fb] px-2 py-1 text-xs text-[var(--color-ink)]">
+                <span>{uiText.analysisLabel}</span>
+                <input
+                  type="checkbox"
+                  aria-label={uiText.analysisLabel}
+                  checked={analysisEnabled}
+                  disabled={streaming}
+                  onChange={(event) => onToggleAnalysis(event.target.checked)}
+                  className="h-3.5 w-3.5 accent-[var(--color-accent)]"
+                />
+              </label>
+              <Textarea
+                placeholder={uiText.textareaPlaceholder}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={handleTextareaKeyDown}
+                disabled={streaming}
+                className="!w-auto flex-1 !max-h-[120px] !min-h-[40px] resize-none !border-0 bg-transparent !px-0 !py-2 !shadow-none focus:!border-0 focus:!ring-0"
+              />
+              <Button type="submit" disabled={!sessionId && !text} size="sm" className="h-9 shrink-0 px-3">
+                {streaming ? <Loader2 className="animate-spin" size={16} /> : <Send size={16} />}
+                {streaming ? uiText.sending : uiText.send}
+              </Button>
+            </div>
+          </form>
         </div>
-      </form>
+      </div>
     </section>
+  );
+}
+
+function EmptyConversationPrompt({
+  intro,
+  examplesTitle,
+  examples,
+  onChooseExample
+}: {
+  intro: string;
+  examplesTitle: string;
+  examples: readonly string[];
+  onChooseExample: (example: string) => void;
+}) {
+  return (
+    <div className="mx-auto w-full max-w-2xl">
+      <div className="rounded-xl border border-[var(--color-border-subtle)] bg-[#eef1f6] px-4 py-4 text-sm leading-relaxed text-[var(--color-ink)] shadow-sm md:px-5">
+        {intro}
+      </div>
+      <div className="mt-3">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--color-ink-soft)]">{examplesTitle}</p>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {examples.map((example) => (
+            <button
+              key={example}
+              type="button"
+              onClick={() => onChooseExample(example)}
+              className="rounded-lg border border-[var(--color-border-subtle)] bg-white px-3 py-2 text-left text-xs text-[var(--color-ink)] transition hover:border-[var(--color-accent)] hover:bg-[#f8faff]"
+            >
+              {example}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -155,7 +210,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div
       className={cn(
-        "max-w-[88%] break-words rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[75%]",
+        "max-w-[82%] break-words rounded-2xl px-4 py-3 text-sm shadow-sm sm:max-w-[68%]",
         isUser
           ? "ml-auto bg-[var(--color-accent)] text-white"
           : "mr-auto border border-[var(--color-border-subtle)] bg-[#eef1f6] text-[var(--color-ink)]"

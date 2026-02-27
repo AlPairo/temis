@@ -295,6 +295,7 @@ export class ChatOrchestrator {
         query: userText,
         filters: input.retrievalFilters,
         topK: input.retrievalTopK,
+        disableRerank: queryType === "analysis",
         requestId,
         conversationId: input.conversationId
       });
@@ -368,7 +369,8 @@ export class ChatOrchestrator {
       const prompt = dependencies.buildPrompt({
         history,
         retrieval,
-        userText
+        userText,
+        queryType
       });
 
       const model = input.model ?? DEFAULT_MODEL;

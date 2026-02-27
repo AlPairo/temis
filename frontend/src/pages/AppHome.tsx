@@ -396,7 +396,7 @@ export default function AppHome() {
           </div>
         </div>
 
-        <div className="hidden h-full min-h-0 overflow-hidden md:grid md:grid-cols-[280px_1fr]">
+        <div className="hidden h-full min-h-0 overflow-hidden md:grid md:grid-cols-[340px_1fr]">
           <SessionList
             activeSessionId={activeSessionId}
             sessions={sessions}

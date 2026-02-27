@@ -83,6 +83,14 @@ async function writeStore(filePath: string, store: StoreShape): Promise<void> {
 export interface LocalVectorStoreClient {
   getCollections: () => Promise<{ collections: Array<{ name: string }> }>;
   collectionExists: (name: string) => Promise<boolean>;
+  search: (
+    collection: string,
+    request: {
+      vector: number[];
+      limit?: number;
+      filter?: Filter;
+    }
+  ) => Promise<Array<{ id: string; score: number; payload: Record<string, unknown> }>>;
   query: (
     collection: string,
     request: {
@@ -135,6 +143,11 @@ export function createLocalVectorStoreClient(): LocalVectorStoreClient {
         .slice(0, Math.max(1, request.limit ?? 10));
 
       return { points: scored };
+    },
+
+    async search(collection, request) {
+      const result = await this.query(collection, request);
+      return result.points;
     },
 
     async upsert(collection, payload) {

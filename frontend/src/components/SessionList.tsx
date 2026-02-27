@@ -39,7 +39,9 @@ export default function SessionList({
   return (
     <aside className="flex h-full min-h-0 flex-col gap-3 border-b border-[var(--color-border-subtle)] bg-[#f6f8fb] p-3 md:border-b-0 md:border-r">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="session-heading">{text.heading}</h3>
+        <h3 style={{ fontFamily: "var(--font-body)", letterSpacing: "normal" }} className="text-sm font-semibold text-[var(--color-ink)]">
+          {text.heading}
+        </h3>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" aria-label={text.refreshAriaLabel} onClick={onRefresh}>
             <RefreshCw size={16} className={cn(isFetching && "animate-spin")} />
@@ -50,41 +52,40 @@ export default function SessionList({
         </div>
       </div>
 
-      <div className="grid gap-2 rounded-lg border border-[var(--color-border-subtle)] bg-white p-2">
-        {canSwitchScope ? (
-          <label className="grid gap-1 text-xs text-[var(--color-ink-soft)]">
-            <span>{text.scopeLabel}</span>
-            <select
-              className="h-9 rounded-md border border-[var(--color-border)] bg-white px-2 text-sm text-[var(--color-ink)]"
-              value={filters.scope}
-              onChange={(e) =>
-                onChangeFilters({
-                  ...filters,
-                  scope: e.target.value === "visible" ? "visible" : "mine"
-                })
-              }
-            >
-              <option value="mine">{text.scopeMine}</option>
-              <option value="visible">{text.scopeVisible}</option>
-            </select>
-          </label>
-        ) : null}
+      {canSwitchScope ? (
+        <label className="grid gap-1 text-xs text-[var(--color-ink-soft)]">
+          <span>{text.scopeLabel}</span>
+          <select
+            className="h-9 rounded-md border border-[var(--color-border)] bg-white px-2 text-sm text-[var(--color-ink)]"
+            value={filters.scope}
+            onChange={(e) =>
+              onChangeFilters({
+                ...filters,
+                scope: e.target.value === "visible" ? "visible" : "mine"
+              })
+            }
+          >
+            <option value="mine">{text.scopeMine}</option>
+            <option value="visible">{text.scopeVisible}</option>
+          </select>
+        </label>
+      ) : null}
 
-        {canViewDeletedFilter ? (
-          <label className="flex items-center gap-2 text-xs text-[var(--color-ink-soft)]">
-            <input
-              type="checkbox"
-              checked={filters.includeDeleted}
-              onChange={(e) => onChangeFilters({ ...filters, includeDeleted: e.target.checked })}
-            />
-            <span>{text.showDeleted}</span>
-          </label>
-        ) : null}
-      </div>
+      {canViewDeletedFilter ? (
+        <label className="flex items-center gap-2 text-xs text-[var(--color-ink-soft)]">
+          <input
+            type="checkbox"
+            checked={filters.includeDeleted}
+            onChange={(e) => onChangeFilters({ ...filters, includeDeleted: e.target.checked })}
+          />
+          <span>{text.showDeleted}</span>
+        </label>
+      ) : null}
 
       <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
         {sessions?.map((session) => {
-          const displayTitle = session.title?.trim() || session.session_id;
+          const displayTitle =
+            session.title?.trim() || session.last_message?.trim() || FRONTEND_TEXT.appHome.fallbackSessionTitle;
           return (
             <div
               key={session.session_id}
@@ -98,7 +99,6 @@ export default function SessionList({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="truncate font-medium text-[var(--color-ink)]">{displayTitle}</div>
-                    <div className="mt-0.5 truncate text-[11px] text-[var(--color-ink-soft)]">{session.session_id}</div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1">
                     {session.is_deleted ? <Badge tone="neutral" label={text.deletedBadge} /> : null}

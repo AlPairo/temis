@@ -104,6 +104,29 @@ describe("modules/chat/prompt-builder", () => {
     expect(prompt.messages[prompt.messages.length - 2]?.content).toContain("(none)");
     expect(prompt.messages[prompt.messages.length - 2]?.content).toContain("Low confidence retrieval: yes");
   });
+
+  it("adds strict citation-focused answer contract in analysis mode", async () => {
+    const { buildPrompt } = await import("../../src/modules/chat/prompt-builder.js");
+
+    const prompt = buildPrompt({
+      history: [],
+      retrieval: {
+        chunks: [{ doc_id: "doc", chunk_id: "c1", text: "chunk text", score: 0.9, metadata: {} }],
+        citations: [{ id: "doc:c1", doc_id: "doc", chunk_id: "c1", score: 0.9 }],
+        lowConfidence: false,
+        latencyMs: 10
+      },
+      userText: "analiza este caso",
+      queryType: "analysis"
+    } as any);
+
+    const systemMessages = prompt.messages.filter((message) => message.role === "system");
+    expect(systemMessages.some((message) => message.content.includes("Mandatory response format for analysis mode"))).toBe(
+      true
+    );
+    expect(systemMessages.some((message) => message.content.includes("[doc:c1] doc/c1"))).toBe(true);
+    expect(prompt.messages.at(-1)).toEqual({ role: "user", content: "analiza este caso" });
+  });
 });
 
 describe("modules/rag/citation-builder", () => {

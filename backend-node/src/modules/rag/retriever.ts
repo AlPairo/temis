@@ -32,7 +32,7 @@ export class RetrieverHealthError extends Error {
   }
 }
 
-type QdrantQueryRequest = {
+type QdrantSearchRequest = {
   vector: number[];
   limit: number;
   with_payload: boolean;
@@ -70,7 +70,7 @@ const resolveDependencies = (dependencies?: RetrieverDependencies) => ({
 
 const buildFilter = (
   filters: RetrievalFilters | undefined,
-): QdrantQueryRequest["filter"] => {
+): QdrantSearchRequest["filter"] => {
   if (!filters) {
     return undefined;
   }
@@ -134,18 +134,23 @@ const getEmbedding = async (
   return embedding;
 };
 
-const queryQdrant = async (
+const searchQdrant = async (
   collection: string,
-  request: QdrantQueryRequest,
+  request: QdrantSearchRequest,
   dependencies: ReturnType<typeof resolveDependencies>,
 ): Promise<QdrantPoint[]> => {
   try {
     const { client } = await dependencies.getQdrantClient();
-    const payload = (await client.query(collection, request)) as {
+    const payload = (await client.search(collection, request)) as
+      | QdrantPoint[]
+      | {
       points?: QdrantPoint[];
       result?: { points?: QdrantPoint[] } | QdrantPoint[];
     };
 
+    if (Array.isArray(payload)) {
+      return payload;
+    }
     if (Array.isArray(payload.result)) {
       return payload.result;
     }
@@ -245,7 +250,7 @@ export const retrieve = async (input: RetrievalInput, dependencies?: RetrieverDe
   const { collection } = ensureQdrantConfig(resolved.getEnv);
 
   const embedding = await getEmbedding(query, model, resolved);
-  const points = await queryQdrant(collection, {
+  const points = await searchQdrant(collection, {
     vector: embedding,
     limit: candidateTopK,
     with_payload: true,
@@ -255,7 +260,8 @@ export const retrieve = async (input: RetrievalInput, dependencies?: RetrieverDe
 
   const candidates = points.map(normalizeChunk).filter(Boolean) as RetrievedChunk[];
   let chunks = candidates.slice(0, topK);
-  if (candidates.length > 1) {
+  const shouldRerank = !input.disableRerank && candidates.length > 1;
+  if (shouldRerank) {
     try {
       chunks = await resolved.rerankChunks({
         query,

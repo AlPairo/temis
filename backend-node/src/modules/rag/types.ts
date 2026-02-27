@@ -8,6 +8,7 @@ export type RetrievalInput = {
   query: string;
   filters?: RetrievalFilters;
   topK?: number;
+  disableRerank?: boolean;
   embeddingModel?: string;
   requestId?: string;
   conversationId?: string;

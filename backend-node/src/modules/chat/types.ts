@@ -24,6 +24,7 @@ export interface PromptBuildInput {
   history: Array<{ role: "system" | "user" | "assistant" | "tool"; content: string }>;
   retrieval: RetrievalResult;
   userText: string;
+  queryType?: QueryType;
 }
 
 export interface PromptBuildOutput {
@@ -106,6 +107,7 @@ export interface OrchestratorDependencies {
     query: string;
     filters?: RetrievalFilters;
     topK?: number;
+    disableRerank?: boolean;
     requestId?: string;
     conversationId?: string;
   }): Promise<RetrievalResult>;

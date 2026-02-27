@@ -71,7 +71,7 @@ export const FRONTEND_TEXT = {
   },
   topbar: {
     welcomeEyebrow: "Bienvenido/a",
-    welcomePrefix: "Bienvenido/a, ",
+    welcomePrefix: "",
     openUserPanelAriaLabel: "Abrir panel de usuario",
     signOut: "Salir"
   },
@@ -93,7 +93,15 @@ export const FRONTEND_TEXT = {
   chatView: {
     sessionPrefix: "Sesión: ",
     newSessionTitle: "Nueva sesión",
-    analysisLabel: "Analizar",
+    analysisLabel: "Análisis Profundo",
+    emptyStateIntro:
+      "Soy Temis, tu agente especializado en Jurisprudencia Uruguaya. Si deseas buscar jurisprudencia, comenta un poco acerca del caso. Si quieres un analisis mas profundo, recuerda activar el modo analisis con el boton antes de enviar el mensaje.",
+    emptyStateExamplesTitle: "Ejemplos de busqueda",
+    emptyStateExamples: [
+      "Despido indirecto por cambios unilaterales en condiciones laborales",
+      "Responsabilidad civil por mala praxis medica en Uruguay",
+      "Nulidad de clausulas abusivas en contratos de consumo"
+    ],
     sessionIdTitlePrefix: "ID de sesión: ",
     sessionIdMissingTitle: "Sin ID de sesión",
     sessionIdShowAriaPrefix: "Ver ID de sesión: ",
@@ -222,3 +230,6 @@ export const formatDeleteSessionAriaLabel = (title: string): string => `Eliminar
 
 export const formatMockDeleteSessionDetail = (id: string): string =>
   `${FRONTEND_TEXT.services.sessions.mockDeleteDetailPrefix}${id}${FRONTEND_TEXT.services.sessions.mockDeleteDetailSuffix}`;
+
+
+
