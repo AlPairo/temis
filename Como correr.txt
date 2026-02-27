@@ -1,5 +1,0 @@
-Backend
-uv run uvicorn chat_service:app --reload --port 8000
-
-Frontend
-npm run dev
