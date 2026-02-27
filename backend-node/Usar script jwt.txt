@@ -1,5 +1,0 @@
-  cd backend-node
-  $env:AUTH_JWT_SECRET='dev-secret'
-  npm run mint:test-jwt -- --sub u-demo --role basic
-  npm run mint:test-jwt -- --sub sup-1 --role supervisor --exp-seconds 3600
-  npm run mint:test-jwt -- --sub admin-1 --role admin --iss my-issuer --aud my-audience
